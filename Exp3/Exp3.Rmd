@@ -1,0 +1,150 @@
+---
+title: "Exp3"
+author: "Mang Zhu"
+date: "February 26, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = getwd())
+```
+
+
+```{r data import}
+fileNames <- list.files(path = "Data", pattern = "MSZ21*")
+files <- paste("Data/", fileNames, sep="")
+MSZ21_all <- read.csv(files, header = T)
+```
+
+
+```{r}
+library(dplyr)
+
+MSZ21 <- select(MSZ21_all, Protein.IDs, Majority.protein.IDs, First.Majority.protein.IDs, Fasta.headers, Ratio.H.M.MSZ21_1_P, Ratio.H.M.MSZ21_1_T, Ratio.H.M.MSZ21_2_P, Ratio.H.M.MSZ21_2_T, Ratio.H.M.MSZ21_3_P, Ratio.H.M.MSZ21_3_T, Ratio.H.M.MSZ21_4_P, Ratio.H.M.MSZ21_4_T)
+
+MSZ21$Ratio.MSZ21_P_T_1 <- MSZ21$Ratio.H.M.MSZ21_1_P/MSZ21$Ratio.H.M.MSZ21_1_T
+MSZ21$Ratio.MSZ21_P_T_2 <- MSZ21$Ratio.H.M.MSZ21_2_P/MSZ21$Ratio.H.M.MSZ21_2_T
+MSZ21$Ratio.MSZ21_P_T_3 <- MSZ21$Ratio.H.M.MSZ21_3_P/MSZ21$Ratio.H.M.MSZ21_3_T
+MSZ21$Ratio.MSZ21_P_T_4 <- MSZ21$Ratio.H.M.MSZ21_4_P/MSZ21$Ratio.H.M.MSZ21_4_T
+
+MSZ21$Log2.MSZ21_P_T_1 <- log2(MSZ21$Ratio.MSZ21_P_T_1)
+MSZ21$Log2.MSZ21_P_T_2 <- log2(MSZ21$Ratio.MSZ21_P_T_2)
+MSZ21$Log2.MSZ21_P_T_3 <- log2(MSZ21$Ratio.MSZ21_P_T_3)
+MSZ21$Log2.MSZ21_P_T_4 <- log2(MSZ21$Ratio.MSZ21_P_T_4)
+
+MSZ21$Log2.MSZ21_P_T_mean <- apply(select(MSZ21, Log2.MSZ21_P_T_1, Log2.MSZ21_P_T_2, Log2.MSZ21_P_T_3, Log2.MSZ21_P_T_4), MARGIN = 1, mean,na.rm = T)
+
+MSZ21$MSZ21_P_T_count <- apply(select(MSZ21, Log2.MSZ21_P_T_1, Log2.MSZ21_P_T_2, Log2.MSZ21_P_T_3, Log2.MSZ21_P_T_4), MARGIN = 1, function(x) length(which(!is.na(x))))
+
+MSZ21_tri <- MSZ21[which(MSZ21$MSZ21_P_T_count>=3),]
+
+for(i in 1:nrow(MSZ21_tri))
+  MSZ21_tri$MSZ21_P_T_p.val[i] <- t.test(select(MSZ21_tri, Log2.MSZ21_P_T_1, Log2.MSZ21_P_T_2, Log2.MSZ21_P_T_3, Log2.MSZ21_P_T_4)[i,], mu=0)$p.value
+
+MSZ21_tri <- MSZ21_tri[order(MSZ21_tri$Log2.MSZ21_P_T_mean),]
+
+for(i in 1:nrow(MSZ21_tri))
+  MSZ21_tri$MSZ21_P_T_rank[i] <- i/nrow(MSZ21_tri)
+
+MSZ21_tri$MSZ21_P_T_log10p.val <- -log10(MSZ21_tri$MSZ21_P_T_p.val)
+
+MSZ20_hits <- read.csv("../Exp2/Data/MSZ20_hits.csv", header = T)
+MSZ20_21 <- merge(MSZ21_tri, MSZ20_hits, by = "First.Majority.protein.IDs", all.x = F, suffixes = c("_21","_20"))
+
+MSZ21_HSP <- MSZ20_21[which(MSZ20_21$Log2.MSZ21_P_T_mean>=1),]
+MSZ21_HSP <- MSZ21_HSP[which(MSZ21_HSP$MSZ21_P_T_p.val<=0.05),]
+MSZ21_HSP$Hits <- "HSP"
+
+MSZ21_CP <- MSZ20_21[which(abs(MSZ20_21$Log2.MSZ21_P_T_mean)<1),]
+MSZ21_CP <- MSZ21_CP[which(MSZ21_CP$MSZ21_P_T_p.val>0.05),]
+MSZ21_CP$Hits <- "CP"
+
+MSZ21_nosig <- MSZ20_21[which(MSZ20_21$MSZ21_P_T_p.val>0.05),]
+
+library(ggplot2)
+MSZ21_Hits <- rbind(MSZ21_HSP, MSZ21_CP)
+nrow(MSZ21_Hits)
+
+
+
+MSZ20_21$ntHits[MSZ20_21$First.Majority.protein.IDs %in% MSZ21_HSP$First.Majority.protein.IDs] <- "HSP"
+MSZ20_21$ntHits[MSZ20_21$First.Majority.protein.IDs %in% MSZ21_CP$First.Majority.protein.IDs] <- "CP"
+
+MSZ21_hitsp <- ggplot(data=MSZ20_21) + geom_point(aes(x = Log2.MSZ21_P_T_mean, y = MSZ21_P_T_log10p.val, colour=ntHits))+
+  scale_colour_manual(values=c("gray60","#7FBF26"), na.value = "#C9CACA")+ 
+  theme(
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        axis.line = element_line(colour = "black"),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        legend.position = "none"
+        )+ geom_hline(yintercept=-log10(0.05), linetype="dashed", color = "black", size= .5) + geom_vline(xintercept = 1, linetype="dashed",color = "black", size= .5)
+  
+MSZ21_hitsp
+```
+
+```{r TCL}
+MSZ21_TCL <- MSZ21
+
+#Log2 of TCL Ratio
+MSZ21_TCL$Log2.MSZ21_T_1 <- log2(MSZ21$Ratio.H.M.MSZ21_1_T)
+MSZ21_TCL$Log2.MSZ21_T_2 <- log2(MSZ21$Ratio.H.M.MSZ21_2_T)
+MSZ21_TCL$Log2.MSZ21_T_3 <- log2(MSZ21$Ratio.H.M.MSZ21_3_T)
+MSZ21_TCL$Log2.MSZ21_T_4 <- log2(MSZ21$Ratio.H.M.MSZ21_4_T)
+
+#number of replicates quantified
+MSZ21_TCL$MSZ21_T_count <- apply(select(MSZ21_TCL, Log2.MSZ21_T_1, Log2.MSZ21_T_2, Log2.MSZ21_T_3, Log2.MSZ21_T_4), MARGIN = 1, function(x) length(which(!is.na(x))))
+
+#selected proteins that are quantified at least 3 times
+MSZ21_TCLtri <- MSZ21_TCL[which(MSZ21_TCL$MSZ21_T_count>=3),]
+
+#mean of TCL Log2 ratio not counting NA using 'na.rm = T'
+MSZ21_TCLtri$Log2.MSZ21_T_mean <- apply(select(MSZ21_TCLtri, Log2.MSZ21_T_1, Log2.MSZ21_T_2, Log2.MSZ21_T_3, Log2.MSZ21_T_4), MARGIN = 1, mean, na.rm = T)
+
+#order proteins by ratio mean
+MSZ21_TCLtri <- MSZ21_TCLtri[order(MSZ21_TCLtri$Log2.MSZ21_T_mean),]
+
+#genarate ranking
+for(i in 1:nrow(MSZ21_TCLtri))
+  MSZ21_TCLtri$MSZ21_T_rank[i] <- i/nrow(MSZ21_TCLtri)
+
+
+```
+
+
+```{r}
+MSZ20 <- read.csv("Data/Exp1/MSZ20_proteins.csv", header = T)
+library(VennDiagram)
+MSZ20v <- as.character(MSZ20[,"First.Majority.protein.IDs"])
+MSZ21v <- as.character(MSZ21_tri[,"First.Majority.protein.IDs"])
+
+library(ggVennDiagram)
+ggVennDiagram(list(MSZ20=MSZ20v,MSZ21=MSZ21v), label = "count") +
+  theme(
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    legend.position = "none"
+        )
+```
+
+
+```{r binning}
+MSZ21_HSP_bin <- as.character(MSZ21_HSP[,"First.Majority.protein.IDs"])
+MSZ21_CP_bin <- as.character(MSZ21_CP[,"First.Majority.protein.IDs"])
+
+#convert yeast gene locus names to uniport names
+uni <- read.table("Data/yeast_locus.txt")
+
+MSZ21_CP_bin_uni <- as.character(uni[uni$V2 %in% MSZ21_CP_bin,'V1'])
+MSZ21_HSP_bin_uni <- as.character(uni[uni$V2 %in% MSZ21_HSP_bin,'V1'])
+```
+
+```{r,eval = FALSE}
+write.csv(MSZ21_HSP_bin_uni, file = "bin/bin1.csv"  )
+write.csv(MSZ21_CP_bin_uni, file = "bin/bin2.csv"  )
+```
+

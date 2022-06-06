@@ -1,0 +1,117 @@
+---
+title: "MSZ20_TCL_Plots"
+author: "Mang Zhu"
+date: "September 22, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, fig.width=8, fig.height=8}
+library(ggplot2)
+MSZ20_TCLtri <- read.csv("D:/MS Analysis/MSZ20_D-PULSE/Analysis/MSZ20_TCL.csv", header = T)
+ntSP <- read.csv("D:/MS Analysis/MSZ21_T-PULSE/Analysis/MSZ21_HSP.csv", header = T)
+ntCP <- read.csv("D:/MS Analysis/MSZ21_T-PULSE/Analysis/MSZ21_CP.csv", header = T)
+ntSP_TCL <- MSZ20_TCLtri[MSZ20_TCLtri[,"First.Majority.protein.IDs"] %in% ntSP[,"First.Majority.protein.IDs"],]
+ntCP_TCL <- MSZ20_TCLtri[MSZ20_TCLtri[,"First.Majority.protein.IDs"] %in% ntCP[,"First.Majority.protein.IDs"],]
+MSZ20_hits <- read.csv("D:/MS Analysis/MSZ20_D-PULSE/Analysis/MSZ20_hits.csv", header = T)
+MSZ20_hits_TCL <- MSZ20_TCLtri[MSZ20_TCLtri$First.Majority.protein.IDs %in% MSZ20_hits$First.Majority.protein.IDs,]
+MSZ20_neghits <- read.csv("D:/MS Analysis/MSZ20_D-PULSE/Analysis/MSZ20_neghits.csv", header = T)
+MSZ20_neghits_TCL <- MSZ20_TCLtri[MSZ20_TCLtri$First.Majority.protein.IDs %in% MSZ20_neghits$First.Majority.protein.IDs,]
+nrow(MSZ20_hits_TCL)
+nrow(MSZ20_neghits_TCL)
+
+MSZ20_TCLtri$group <- as.factor("all")
+MSZ20_hits_TCL$group <- as.factor("MSZ20_hits")
+MSZ20_neghits_TCL$group <- as.factor("MSZ20_neghits")
+
+TCLplot <- rbind(MSZ20_TCLtri, MSZ20_hits_TCL, MSZ20_neghits_TCL)
+
+MSZ20_TCLtriMedian <- median(MSZ20_TCLtri[,"Log2.MSZ20_T_mean"])
+MSZ20_TCLtrilable <- format(round(1/(1+1/2^MSZ20_TCLtriMedian)*100, 2), nsmall = 2)
+
+#mycol=c("Black","#7FBF26","gray60")
+#myfill=c(NA,"#7FBF26","gray60")
+# #00bfc4
+mycol=c("Black","#7FBF26","gray60")
+myfill=c(NA,"#7FBF26","gray60")
+
+TCL_Dg <- ggplot(TCLplot, aes(Log2.MSZ20_T_mean)) +
+          geom_density(aes(x = Log2.MSZ20_T_mean, y = ..count.., fill = group, color = group), alpha=.6, size = 1) +
+          scale_fill_manual(values=myfill) +
+          scale_colour_manual(values=mycol) +
+          geom_vline(xintercept = MSZ20_TCLtriMedian,linetype="dashed", size = 1) +
+          geom_label(label = paste(c("Labeling efficiency: ", MSZ20_TCLtrilable, "%"), collapse = ""), y=2000, x=MSZ20_TCLtriMedian+3)+
+          #xlim(-7, 1) + 
+          theme(
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        ) + 
+  scale_y_continuous(expand = expansion(mult = c(0.005, 0.1))) +
+  scale_x_continuous(expand = c(0.01, 0.01), limits = c(-7, 1))
+
+          
+TCL_Dg
+```
+
+```{r, eval=FALSE}
+#save plot as PDF
+ggsave("MSZ20_TCL.pdf", device = "pdf",width = 10, height = 10, units = "cm", dpi = 300)
+```
+
+```{r}
+mycol=c("Black","#7FBF26","gray60")
+myfill=c(NA,"#7FBF26","gray60")
+
+TCL_Dgn <- ggplot(TCLplot, aes(Log2.MSZ20_T_mean)) +
+          geom_density(aes(x = Log2.MSZ20_T_mean, y = ..count.., fill = group, color = group), alpha=.6, size = 1) +
+          geom_density(data = TCLplot[TCLplot$group=="MSZ20_neghits",],aes(x = Log2.MSZ20_T_mean, y = ..count..*10)) +
+          scale_fill_manual(values=myfill) +
+          scale_colour_manual(values=mycol) +
+          geom_vline(xintercept = MSZ20_TCLtriMedian,linetype="dashed", size = 1) +
+          geom_label(label = paste(c("Labeling efficiency: ", MSZ20_TCLtrilable, "%"), collapse = ""), y=2000, x=MSZ20_TCLtriMedian+3)+
+          #xlim(-7, 1) +
+          theme(
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        ) +
+  scale_y_continuous(expand = expansion(mult = c(0.005, 0.1)),sec.axis = sec_axis(~./10, name="count")) +
+  scale_x_continuous(expand = c(0.01, 0.01), limits = c(-7, 1))
+
+          
+TCL_Dgn
+```
+```{r, eval=FALSE}
+#save plot as PDF
+ggsave("MSZ20_TCL_tall.pdf", device = "pdf",width = 10, height = 10, units = "cm", dpi = 300)
+```
+
+```{r, fig.width=8, fig.height=8}
+library(fitdistrplus)
+library(logspline)
+
+descdist(MSZ20_TCLtri[,"Log2.MSZ20_T_mean"], discrete = FALSE)
+fit.norm <- fitdist(MSZ20_TCLtri[,"Log2.MSZ20_T_mean"], "norm")
+plot(fit.norm)
+TCL_D <- density(MSZ20_TCLtri[,"Log2.MSZ20_T_mean"])
+TCL_D
+plot(TCL_D)
+
+
+
+MSZ20_TCLrank <- ggplot(data=MSZ20_TCLtri, aes(x = MSZ20_T_rank, y = Log2.MSZ20_T_mean)) + geom_point()
+MSZ20_TCLrank <- MSZ20_TCLrank+ geom_hline(yintercept=MSZ20_TCLtriMedian, linetype="dashed", color = "red", size=1.5)+ geom_label(label = paste(c("Labeling efficiency: ", MSZ20_TCLtrilable, "%"), collapse = ""), x=0.75, y=MSZ20_TCLtriMedian-1) + geom_point(data=ntSP_TCL, aes(x = MSZ20_T_rank, y = Log2.MSZ20_T_mean, colour= "#C9CACA"))
+MSZ20_TCLrank
+
+```
+

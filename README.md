@@ -1,1 +1,1 @@
-# ntSP-Features
+This is the script used for data analysis in Zhu, M et al. 2022 Pulse labeling reveals the tail end of protein folding by proteome profiling. Cell Reports

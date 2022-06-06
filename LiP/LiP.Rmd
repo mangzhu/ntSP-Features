@@ -1,0 +1,147 @@
+---
+title: "MSZ23"
+author: "Mang Zhu"
+date: "May 14, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+
+```
+
+
+```{r}
+fileNames <- list.files(path = "Data", pattern = "MSZ23*")
+files <- paste("Data/", fileNames, sep="")
+Lapply <- lapply(files, read.csv, header=TRUE)
+names <- gsub(".csv", "", fileNames)
+names <- gsub("MSZ23_MaxQuant_1.6.17_Analyzed_20210613_", "", names)
+#names <- gsub("MSZ22_MaxQuant_1.6.17_Analyzed_20210509_", "", names)
+names(Lapply) <- names
+for(i in names(Lapply)) 
+    assign(i, Lapply[[i]])
+rm(Lapply)
+
+ntSP <- read.csv("../Exp3/bin/hitbin1.csv")
+colnames(ntSP) <- c("V1","Uniport")
+uniport <- read.table("../Exp3/Data/yeast_locus.txt")
+colnames(uniport) <- c("Uniport","YeastORF")
+
+####
+ctrl <- read.csv("../Exp3/bin/hitbin3.csv")
+colnames(ctrl) <- c("V1","Uniport")
+ctrl <- merge(ctrl, uniport, by = "Uniport", all =F)
+
+ntCP <- read.csv("../Exp3/bin/hitbin2.csv")
+colnames(ntCP) <- c("V1","Uniport")
+ntCP <- merge(ntCP, uniport, by = "Uniport", all =F)
+
+ntSP.Y <- merge(ntSP, uniport, by = "Uniport", all =F)
+```
+
+```{r, warning=FALSE}
+ExpNames <- c("ref","50","200","1k","5k","20k","100k")
+
+
+for(i in ExpNames){
+  dfname <- paste("PK",i, sep = "")
+  assign(dfname,peptides[!is.na(dplyr::select(peptides,paste("Ratio.M.L.",i,sep = ""))), c("Sequence","Amino.acid.before","Last.amino.acid","Length","Mass","Proteins","Leading.razor.protein","Start.position","End.position","Unique..Groups.","Unique..Proteins.","Charges","PEP",paste("Ratio.H.M.",i,sep = ""),paste("Ratio.M.L.",i,sep = ""))])
+  j <- log2(dplyr::select(get(dfname),paste("Ratio.M.L.",i,sep = "")))
+  colnames(j) <- paste("Log2.M.L.",i,sep = "")
+  assign(dfname,cbind(get(dfname),j))
+  assign(dfname, get(dfname)[order(dplyr::select(get(dfname),paste("Log2.M.L.",i,sep = ""))),])
+  for(k in 1:nrow(get(dfname))){
+    tempdf <- get(dfname)
+    tempdf$rank[k] <- k/nrow(tempdf)
+    assign(dfname,tempdf)
+  }
+  assign(paste(dfname,".MLMedian", sep = ""), median((dplyr::select(get(dfname),paste("Log2.M.L.",i,sep = "")))[,1]))
+  assign(paste(dfname,".rank", sep = ""),(ggplot(data=get(dfname), aes(x=rank, y = paste("Log2.M.L.",i,sep = "")))
+  + geom_point() + geom_hline(yintercept=0, linetype="dashed", color = "red", size=1.5) +
+  geom_hline(yintercept=paste(dfname,"-MLMedian", sep = ""), linetype="dashed", color = "grey50", size=1)))
+
+}
+
+ref_rank <- ggplot(data=PKref, aes(x = rank, y = Log2.M.L.ref)) + geom_point() 
+ref_rank <- ref_rank+ geom_hline(yintercept=0, linetype="dashed", color = "red", size=1.5) +
+                 geom_hline(yintercept=PKref.MLMedian, linetype="dashed", color = "grey50", size=1)
+plot_all <- ggplot(data=PKref, aes(x = rank, y = Log2.M.L.ref)) + geom_point(aes(color = "ref"))+
+            geom_point(data=PK50, aes(x = rank, y = Log2.M.L.50, color = "50"))+
+            geom_point(data=PK200, aes(x = rank, y = Log2.M.L.200, color = "200"))+
+            geom_point(data=PK1k, aes(x = rank, y = Log2.M.L.1k, color = "1k"))+
+            geom_point(data=PK5k, aes(x = rank, y = Log2.M.L.5k, color = "5k"))+
+            geom_point(data=PK20k, aes(x = rank, y = Log2.M.L.20k, color = "20k"))+
+            geom_point(data=PK100k, aes(x = rank, y = Log2.M.L.100k, color = "100k"))+
+            scale_color_discrete(breaks=c("50","200","1k","5k","20k","100k","ref"))+
+            labs(y = paste("Log2.M.L",sep = ""))
+plot_all
+```
+```{r, warning=FALSE}
+for(i in ExpNames){
+  dfname <- paste("HM",i, sep = "")
+  assign(dfname,peptides[!is.na(dplyr::select(peptides,paste("Ratio.H.M.",i,sep = ""))), c("Sequence","Amino.acid.before","Last.amino.acid","Length","Mass","Proteins","Leading.razor.protein","Start.position","End.position","Unique..Groups.","Unique..Proteins.","Charges","PEP",paste("Ratio.H.M.",i,sep = ""),paste("Ratio.M.L.",i,sep = ""),paste("Ratio.H.M.","ref",sep = ""),paste("Ratio.M.L.","ref",sep = ""))])
+  j <- log2(dplyr::select(get(dfname),paste("Ratio.H.M.",i,sep = "")))
+  colnames(j) <- paste("Log2.H.M.",i,sep = "")
+  assign(dfname,cbind(get(dfname),j))
+  j <- log2(dplyr::select(get(dfname),Ratio.H.M.ref))
+  colnames(j) <- "Log2.H.M.ref1"
+  assign(dfname,cbind(get(dfname),j))
+  j <- (dplyr::select(get(dfname),paste("Log2.H.M.",i,sep = "")))-(dplyr::select(get(dfname),Log2.H.M.ref1))
+  colnames(j) <- "H.M.LiP"
+  assign(dfname,cbind(get(dfname),j))
+  j <- log2(dplyr::select(get(dfname),paste("Ratio.M.L.",i,sep = "")))
+  colnames(j) <- paste("Log2.M.L.",i,sep = "")
+  assign(dfname,cbind(get(dfname),j))
+  j <- log2(dplyr::select(get(dfname),Ratio.M.L.ref))
+  colnames(j) <- "Log2.M.L.ref1"
+  assign(dfname,cbind(get(dfname),j))
+  j <- (-(dplyr::select(get(dfname),paste("Log2.M.L.",i,sep = ""))))-(-(dplyr::select(get(dfname),Log2.M.L.ref1)))
+  colnames(j) <- "L.M.LiP"
+  assign(dfname,cbind(get(dfname),j))
+  assign(dfname,get(dfname)[!is.na(dplyr::select(get(dfname),H.M.LiP)), ])
+  assign(dfname, get(dfname)[order(dplyr::select(get(dfname),H.M.LiP)),])
+  for(k in 1:nrow(get(dfname))){
+    tempdf <- get(dfname)
+    tempdf$rank[k] <- k/nrow(tempdf)
+    assign(dfname,tempdf)
+  }
+  assign(paste(dfname,".HMMedian", sep = ""), median((dplyr::select(get(dfname),paste("Log2.H.M.",i,sep = "")))[,1]))
+}
+```
+
+
+```{r, fig.width=16, fig.height=16, warning=FALSE}
+library(ggtext)
+HM1k_ntSP <- merge(HM1k, uniport, by.x = "Leading.razor.protein", by.y = "YeastORF", all = F)
+HM1k_ntSP <- merge(HM1k_ntSP, ntSP, by = "Uniport", all =F)
+HM1k_ntSP$Leading.razor.protein <- as.factor(HM1k_ntSP$Leading.razor.protein)
+j <- 1
+out <- list()
+HM1k.ntSPLiP2 <- data.frame()
+for(i in 1:length(levels(HM1k_ntSP$Leading.razor.protein))){
+  if(nrow(subset(subset(HM1k_ntSP, Leading.razor.protein == levels(HM1k_ntSP$Leading.razor.protein)[i]), H.M.LiP < -1))>=2){
+    HM1k.ntSPLiP2 <- rbind(HM1k.ntSPLiP2, subset(HM1k_ntSP, Leading.razor.protein == levels(HM1k_ntSP$Leading.razor.protein)[i]))
+    out[[j]] <- ggplot(data = subset(HM1k_ntSP, Leading.razor.protein == levels(HM1k_ntSP$Leading.razor.protein)[i]), aes(x = Start.position, y = H.M.LiP))+geom_point()+labs(title = if(levels(HM1k_ntSP$Leading.razor.protein)[i] %in% HM1k_ntSP$Leading.razor.protein){paste(levels(HM1k_ntSP$Leading.razor.protein)[i],"<span style = 'color: #7FBF26;'> ntSP</span>",sep = " ")}else{levels(HM1k_ntSP$Leading.razor.protein)[i]}, x = "position", y = "1k PK ratio Log2.H.M ref normalized")+ylim(-4,2)+
+      geom_point(data = subset(subset(HM1k_ntSP, Leading.razor.protein == levels(HM1k_ntSP$Leading.razor.protein)[i]), H.M.LiP < -1), aes(x = Start.position, y = H.M.LiP), color = "#F8766D")+
+      geom_point(aes(x=Start.position, y = L.M.LiP), shape = 2)+
+      geom_hline(yintercept=0, color = "black", size=1) +
+      theme(
+          plot.title = element_markdown(),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        )
+    j <- j+1
+    }
+}
+f <- ggpubr::ggarrange(plotlist = out, ncol = 4, nrow = 4)
+f
+```

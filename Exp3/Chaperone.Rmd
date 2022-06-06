@@ -1,0 +1,88 @@
+---
+title: "Chaperone"
+author: "Mang Zhu"
+date: "Sept 29, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+cct <- read.csv("Frydman_MolCell2019_yeast_CCT.csv", header = TRUE)
+ssb <- read.csv("Frydman_MolCell2019_yeast_SSB.csv", header = TRUE)
+uni <- read.table("Data/yeast_locus.txt")
+names(uni) <- c("uniport","ORF")
+hits <- read.csv("bin/hitbin1.csv", header = T)
+
+
+ycct <- merge(cct, uni, by = "ORF", all.y = T)
+ycct$Number.of.assigned.TRiC.sites[is.na(ycct$Number.of.assigned.TRiC.sites)] <- 0
+ycct <- distinct(ycct, uniport, .keep_all = TRUE)
+ycct <- ycct[,c(5,4)]
+
+yssb <- merge(ssb, uni, by = "ORF", all.y = T)
+yssb$Number.of.assigned.Ssb.sites[is.na(yssb$Number.of.assigned.Ssb.sites)] <- 0
+yssb <- distinct(yssb, uniport, .keep_all = TRUE)
+yssb <- yssb[,c(5,4)]
+
+ychap <- merge(yssb, ycct, by = "uniport", all.y = T)
+ntSPchap <- ychap[ychap$uniport %in% hits[,2],]
+
+########
+chapprec_df <- data.frame(group=rep(c("ntSP","pme"), each = 6),
+                      chap=rep(c("no ssb","ssb","multi-ssb","no TRiC","TRiC","multi-TRiC"), 2),
+                      perc=c(
+length(which(ntSPchap$Number.of.assigned.Ssb.sites<1))/length(ntSPchap$Number.of.assigned.Ssb.sites),
+                                  length(which(ntSPchap$Number.of.assigned.Ssb.sites>=1))/length(ntSPchap$Number.of.assigned.Ssb.sites),
+                                  length(which(ntSPchap$Number.of.assigned.Ssb.sites>1))/length(ntSPchap$Number.of.assigned.Ssb.sites),
+                                  length(which(ntSPchap$Number.of.assigned.TRiC.sites<1))/length(ntSPchap$Number.of.assigned.TRiC.sites),
+                                  length(which(ntSPchap$Number.of.assigned.TRiC.sites>=1))/length(ntSPchap$Number.of.assigned.TRiC.sites),
+                                  length(which(ntSPchap$Number.of.assigned.TRiC.sites>1))/length(ntSPchap$Number.of.assigned.TRiC.sites),
+                             
+length(which(ychap$Number.of.assigned.Ssb.sites<1))/length(ychap$Number.of.assigned.Ssb.sites),
+                                  length(which(ychap$Number.of.assigned.Ssb.sites>=1))/length(ychap$Number.of.assigned.Ssb.sites),
+                                  length(which(ychap$Number.of.assigned.Ssb.sites>1))/length(ychap$Number.of.assigned.Ssb.sites),
+                                  length(which(ychap$Number.of.assigned.TRiC.sites<1))/length(ychap$Number.of.assigned.TRiC.sites),
+                                  length(which(ychap$Number.of.assigned.TRiC.sites>=1))/length(ychap$Number.of.assigned.TRiC.sites),
+                                  length(which(ychap$Number.of.assigned.TRiC.sites>1))/length(ychap$Number.of.assigned.TRiC.sites) )
+  
+)
+
+chapprec_df$chap <- factor(chapprec_df$chap, levels = c("no ssb","ssb","multi-ssb","no TRiC","TRiC","multi-TRiC"))
+
+
+hitInSample <- length(which(ntSPchap$Number.of.assigned.Ssb.sites>=1))
+hitInPop <- length(which(ychap$Number.of.assigned.Ssb.sites>=1))
+sampleSize <- length(ntSPchap$Number.of.assigned.Ssb.sites)
+failInPop <- length(which(ychap$Number.of.assigned.Ssb.sites<1))
+  
+pssb <- fisher.test(matrix(c(hitInSample, hitInPop-hitInSample, sampleSize-hitInSample, failInPop-sampleSize +hitInSample), 2, 2), alternative='greater')$p.value
+
+hitInSample <- length(which(ntSPchap$Number.of.assigned.TRiC.sites>=1))
+hitInPop <- length(which(ychap$Number.of.assigned.TRiC.sites>=1))
+sampleSize <- length(ntSPchap$Number.of.assigned.TRiC.sites)
+failInPop <- length(which(ychap$Number.of.assigned.TRiC.sites<1))
+  
+pTRiC <- fisher.test(matrix(c(hitInSample, hitInPop-hitInSample, sampleSize-hitInSample, failInPop-sampleSize +hitInSample), 2, 2), alternative='greater')$p.value
+
+mycol=c("#7FBF26","gray40")
+
+ggplot(data=chapprec_df[chapprec_df$chap %in% c("ssb","TRiC"),], aes(x=chap, y=perc, fill=group)) +
+  geom_bar(stat="identity", position=position_dodge())+
+   labs(x = "", y = "Percentage") +
+   geom_text(x=1, y=0.75, label=signif(pssb, digits = 2)) +
+   geom_text(x=2, y=0.45, label=signif(pTRiC, digits = 2)) +
+  ylim(0,0.8) +
+  scale_fill_manual(values=mycol)+
+  theme(
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        axis.line = element_line(colour = "black"),
+        plot.background = element_rect(fill = "transparent",colour = NA)
+        )
+```

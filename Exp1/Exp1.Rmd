@@ -1,0 +1,327 @@
+---
+title: "Exp1"
+author: "Mang Zhu"
+date: "May 25, 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = getwd())
+```
+
+
+```{r data import}
+fileNames <- list.files(path = "Data", pattern = "MSZ20*")
+files <- paste("Data/", fileNames, sep="")
+Lapply <- lapply(files, read.csv, header=TRUE)
+names <- gsub("_proteinGroups.csv", "", fileNames)
+names(Lapply) <- names
+for(i in names(Lapply)) 
+    assign(i, Lapply[[i]])
+rm(Lapply)
+```
+
+
+```{r, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+
+MSZ20 <- select(MSZ20_MaxQuant_1.6.14, Protein.IDs, Majority.protein.IDs, First.Majority.protein.IDs, Fasta.headers, Ratio.H.L.MSZ20_1_P, Ratio.H.L.MSZ20_1_T, Ratio.H.L.MSZ20_2_P, Ratio.H.L.MSZ20_2_T, Ratio.H.L.MSZ20_3_P, Ratio.H.L.MSZ20_3_T, Ratio.H.L.MSZ20_4_P, Ratio.H.L.MSZ20_4_T)
+
+#Calculate TCL normalized Ratio
+MSZ20$Ratio.MSZ20_P_T_1 <- MSZ20$Ratio.H.L.MSZ20_1_P/MSZ20$Ratio.H.L.MSZ20_1_T
+MSZ20$Ratio.MSZ20_P_T_2 <- MSZ20$Ratio.H.L.MSZ20_2_P/MSZ20$Ratio.H.L.MSZ20_2_T
+MSZ20$Ratio.MSZ20_P_T_3 <- MSZ20$Ratio.H.L.MSZ20_3_P/MSZ20$Ratio.H.L.MSZ20_3_T
+MSZ20$Ratio.MSZ20_P_T_4 <- MSZ20$Ratio.H.L.MSZ20_4_P/MSZ20$Ratio.H.L.MSZ20_4_T
+
+#Log2 of TCL normalized Ratio
+MSZ20$Log2.MSZ20_P_T_1 <- log2(MSZ20$Ratio.MSZ20_P_T_1)
+MSZ20$Log2.MSZ20_P_T_2 <- log2(MSZ20$Ratio.MSZ20_P_T_2)
+MSZ20$Log2.MSZ20_P_T_3 <- log2(MSZ20$Ratio.MSZ20_P_T_3)
+MSZ20$Log2.MSZ20_P_T_4 <- log2(MSZ20$Ratio.MSZ20_P_T_4)
+
+#Log2 of Pellet Ratio
+MSZ20$Log2.MSZ20_P_1 <- log2(MSZ20$Ratio.H.L.MSZ20_1_P)
+MSZ20$Log2.MSZ20_P_2 <- log2(MSZ20$Ratio.H.L.MSZ20_2_P)
+MSZ20$Log2.MSZ20_P_3 <- log2(MSZ20$Ratio.H.L.MSZ20_3_P)
+MSZ20$Log2.MSZ20_P_4 <- log2(MSZ20$Ratio.H.L.MSZ20_4_P)
+
+#Log2 of TCL Ratio
+MSZ20$Log2.MSZ20_T_1 <- log2(MSZ20$Ratio.H.L.MSZ20_1_T)
+MSZ20$Log2.MSZ20_T_2 <- log2(MSZ20$Ratio.H.L.MSZ20_2_T)
+MSZ20$Log2.MSZ20_T_3 <- log2(MSZ20$Ratio.H.L.MSZ20_3_T)
+MSZ20$Log2.MSZ20_T_4 <- log2(MSZ20$Ratio.H.L.MSZ20_4_T)
+
+#mean of Log2 ratio not counting NA using 'na.rm = T'
+MSZ20$Log2.MSZ20_P_T_mean <- apply(select(MSZ20, Log2.MSZ20_P_T_1, Log2.MSZ20_P_T_2, Log2.MSZ20_P_T_3, Log2.MSZ20_P_T_4), MARGIN = 1, mean, na.rm = T)
+
+#mean of TCL Log2 ratio not counting NA using 'na.rm = T'
+MSZ20$Log2.MSZ20_T_mean <- apply(select(MSZ20, Log2.MSZ20_T_1, Log2.MSZ20_T_2, Log2.MSZ20_T_3, Log2.MSZ20_T_4), MARGIN = 1, mean, na.rm = T)
+
+#mean of Pellet Log2 ratio not counting NA using 'na.rm = T'
+MSZ20$Log2.MSZ20_P_mean <- apply(select(MSZ20, Log2.MSZ20_P_1, Log2.MSZ20_P_2, Log2.MSZ20_P_3, Log2.MSZ20_P_4), MARGIN = 1, mean, na.rm = T)
+
+#number of replicates quantified
+MSZ20$MSZ20_P_T_count <- apply(select(MSZ20, Log2.MSZ20_P_T_1, Log2.MSZ20_P_T_2, Log2.MSZ20_P_T_3, Log2.MSZ20_P_T_4), MARGIN = 1, function(x) length(which(!is.na(x))))
+
+#selected proteins that are quantified at least 3 times
+MSZ20_tri <- MSZ20[which(MSZ20$MSZ20_P_T_count>=3),]
+
+#one sample t-test aganist 0 (mu=0)
+for(i in 1:nrow(MSZ20_tri))
+  MSZ20_tri$MSZ20_P_T_p.val[i] <- t.test(select(MSZ20_tri, Log2.MSZ20_P_T_1, Log2.MSZ20_P_T_2, Log2.MSZ20_P_T_3, Log2.MSZ20_P_T_4)[i,], mu=0)$p.value
+
+#order proteins by ratio mean
+MSZ20_tri <- MSZ20_tri[order(MSZ20_tri$Log2.MSZ20_P_T_mean),]
+
+#genarate ranking
+for(i in 1:nrow(MSZ20_tri))
+  MSZ20_tri$MSZ20_P_T_rank[i] <- i/nrow(MSZ20_tri)
+
+MSZ20_tri$MSZ20_P_T_log10p.val <- -log10(MSZ20_tri$MSZ20_P_T_p.val)
+
+#Select proteins enriched in pellet as newly translated proteins after HS
+MSZ20_hits <- MSZ20_tri[which(MSZ20_tri$Log2.MSZ20_P_T_mean>=1),]
+MSZ20_hits <- MSZ20_hits[which(MSZ20_hits$MSZ20_P_T_p.val<=0.05),]
+MSZ20_hits$Hits <- "Hits"
+
+
+#Select proteins depleted from pellet as newly translated proteins after HS
+MSZ20_neghits <- MSZ20_tri[which(MSZ20_tri$Log2.MSZ20_P_T_mean<=-1),]
+MSZ20_neghits <- MSZ20_neghits[which(MSZ20_neghits$MSZ20_P_T_p.val<=0.05),]
+MSZ20_neghits$Hits <- "neghits"
+
+
+for(i in 1:nrow(MSZ20_tri)){
+  k <- as.numeric(select(MSZ20_tri, Log2.MSZ20_P_T_1, Log2.MSZ20_P_T_2, Log2.MSZ20_P_T_3, Log2.MSZ20_P_T_4)[i,])
+  MSZ20_tri$MSZ20_P_T_SE[i] <- sqrt(var(k[!is.na(k)])/MSZ20_tri$MSZ20_P_T_count[i])
+}
+
+for(i in 1:nrow(MSZ20_tri)){
+  k <- as.numeric(select(MSZ20_tri, Log2.MSZ20_P_T_1, Log2.MSZ20_P_T_2, Log2.MSZ20_P_T_3, Log2.MSZ20_P_T_4)[i,])
+  MSZ20_tri$MSZ20_P_T_SD[i] <- sd(k[!is.na(k)])
+}
+```
+Number of proteins enriched in pellet as newly translated proteins after HS is `r nrow(MSZ20_hits)`
+
+Number of proteins depleted from pellet as newly translated proteins after HS is `r nrow(MSZ20_neghits)`
+
+
+```{r Plotting, warning=FALSE}
+library(zoo)
+
+MSZ20_tri_melt <- reshape2::melt(select(MSZ20_tri, MSZ20_P_T_rank, Log2.MSZ20_P_T_1, Log2.MSZ20_P_T_2, Log2.MSZ20_P_T_3, Log2.MSZ20_P_T_4), id.vars = "MSZ20_P_T_rank")
+
+SE <- zoo(c(rep(NA, each = 25), MSZ20_tri$MSZ20_P_T_SD, rep(NA, each = 24)))
+SE_roll <- rollapply(SE, width = 50, by = 1, FUN = median, align = "center", na.rm = TRUE)
+MSZ20_tri$SE_roll <- SE_roll
+
+MSZ20_rank_dotst <- ggplot(data = MSZ20_tri, aes(x = MSZ20_P_T_rank, y = Log2.MSZ20_P_T_mean)) + geom_point(data=MSZ20_tri_melt, aes(x = MSZ20_P_T_rank, y = value), size = 0.3, alpha = 0.6, color = "grey30") + 
+  geom_ribbon(data = MSZ20_tri, aes(ymin = Log2.MSZ20_P_T_mean-2*SE_roll, ymax = Log2.MSZ20_P_T_mean+2*SE_roll), fill = "#00668e", alpha = 0.4) +
+  geom_line(data = MSZ20_tri, aes(x = MSZ20_P_T_rank, y = Log2.MSZ20_P_T_mean+2*SE_roll), colour = "#00668e", size = 0.2) + 
+  geom_line(data = MSZ20_tri, aes(x = MSZ20_P_T_rank, y = Log2.MSZ20_P_T_mean-2*SE_roll), colour = "#00668e", size = 0.2) +
+  geom_line(data = MSZ20_tri, aes(x = MSZ20_P_T_rank, y = Log2.MSZ20_P_T_mean), colour = "#193161", size = 0.8) +
+  ylim(-5, 5) + 
+          theme(
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        )
+
+MSZ20_rank_dotst 
+```
+
+
+
+```{r pairwise, fig.width=8, fig.height=8, warning=FALSE}
+library(GGally)
+MSZ20pairP <- ggpairs(MSZ20_tri[,c("Log2.MSZ20_P_1", "Log2.MSZ20_P_2", "Log2.MSZ20_P_3", "Log2.MSZ20_P_4")], aes( alpha = 0.4))
+MSZ20pairP[4,1]= MSZ20pairP[4,1] + scale_y_continuous(limits  = c(-7,3)) + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[4,2]= MSZ20pairP[4,2] + scale_y_continuous(limits  = c(-7,3)) + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[4,3]= MSZ20pairP[4,3] + scale_y_continuous(limits  = c(-7,3)) + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[3,1]= MSZ20pairP[3,1] + scale_y_continuous(limits  = c(-7,3)) + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[3,2]= MSZ20pairP[3,2] + scale_y_continuous(limits  = c(-7,3)) + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[2,1]= MSZ20pairP[2,1] + scale_y_continuous(limits  = c(-7,3)) + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[4,4]= MSZ20pairP[4,4] + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[3,3]= MSZ20pairP[3,3] + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[2,2]= MSZ20pairP[2,2] + scale_x_continuous(limits  = c(-7,3))
+MSZ20pairP[1,1]= MSZ20pairP[1,1] + scale_x_continuous(limits  = c(-7,3))
+
+MSZ20pairP
+```
+
+
+
+```{r}
+library(ggpubr)
+library(ggplot2)
+
+MSZ20_trit <- MSZ20_tri
+MSZ20_trit$Hits[MSZ20_trit$First.Majority.protein.IDs %in% MSZ20_hits$First.Majority.protein.IDs] <- "hits"
+MSZ20_trit$Hits[MSZ20_trit$First.Majority.protein.IDs %in% MSZ20_neghits$First.Majority.protein.IDs] <- "neghits"
+
+MSZ20_sp <- ggplot(data=MSZ20_trit, aes(x = Log2.MSZ20_P_T_mean, y = MSZ20_P_T_log10p.val, color = Hits )) + geom_point() + scale_colour_manual(values=c("#7FBF26","gray60"), na.value = "#C9CACA")
+
+  #stat_cor(aes(color = cyl), label.x = 3)       # Add correlation coefficient
+MSZ20_sp <- MSZ20_sp+ geom_hline(yintercept=-log10(0.05), linetype="dashed", color = "black", size= .5) + geom_vline(xintercept = 1, linetype="dashed",color = "black", size= .5) + geom_vline(xintercept = -1, linetype="dashed",color = "black", size= .5) + 
+          theme(
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        ) +
+  xlim(-4,4) +
+  labs(y = "-log10(p-value)", x = "log2(Fold Change)")
+MSZ20_sp
+```
+
+
+
+```{r venn, fig.height=5, fig.width=5}
+MSZ20_1_quant <- as.character(MSZ20[which(!is.na(MSZ20$Log2.MSZ20_P_T_1)),"First.Majority.protein.IDs"])
+MSZ20_2_quant <- as.character(MSZ20[which(!is.na(MSZ20$Log2.MSZ20_P_T_2)),"First.Majority.protein.IDs"])
+MSZ20_3_quant <- as.character(MSZ20[which(!is.na(MSZ20$Log2.MSZ20_P_T_3)),"First.Majority.protein.IDs"])
+MSZ20_4_quant <- as.character(MSZ20[which(!is.na(MSZ20$Log2.MSZ20_P_T_4)),"First.Majority.protein.IDs"])
+
+library(ggVennDiagram)
+ggVennDiagram(list(MSZ20_1=MSZ20_1_quant,MSZ20_2=MSZ20_2_quant,MSZ20_3=MSZ20_3_quant,MSZ20_4=MSZ20_4_quant), label = "count") +
+  theme(
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    legend.position = "none"
+        )
+```
+
+
+
+```{r binning with hits}
+MSZ20_temp <- merge(MSZ20_tri, MSZ20_hits[,c("First.Majority.protein.IDs", "Hits")], by = "First.Majority.protein.IDs", all.x = T)
+
+MSZ20_tri_hitbin1 <- as.character(MSZ20_hits[,"First.Majority.protein.IDs"])
+MSZ20_tri_hitbin2 <- as.character(MSZ20_temp[is.na(MSZ20_temp$Hits),"First.Majority.protein.IDs"])
+
+#convert yeast gene locus names to uniport names
+uni <- read.table("Data/yeast_locus.txt")
+
+MSZ20_tri_hitbin1_uni <- as.character(uni[uni$V2 %in% MSZ20_tri_hitbin1,'V1'])
+MSZ20_tri_hitbin2_uni <- as.character(uni[uni$V2 %in% MSZ20_tri_hitbin2,'V1'])
+MSZ20_tri_hitbin3_uni <- as.character(uni[uni$V2,'V1'])
+
+#MSZ20_tri_bin5_uni <- as.character(uni[uni$V2 %in% MSZ20_tri_bin5,'V1'])
+```
+
+```{r, eval=FALSE}
+write.csv(MSZ20_tri_hitbin1_uni, file = "bin/hitbin1.csv"  )
+write.csv(MSZ20_tri_hitbin2_uni, file = "bin/hitbin2.csv"  )
+write.csv(MSZ20_tri_hitbin3_uni, file = "bin/hitbin3.csv"  )
+```
+
+```{r, fig.width=8, fig.height=8}
+MSZ20_TCL <- MSZ20
+
+#number of replicates quantified
+MSZ20_TCL$MSZ20_T_count <- apply(select(MSZ20, Log2.MSZ20_T_1, Log2.MSZ20_T_2, Log2.MSZ20_T_3, Log2.MSZ20_T_4), MARGIN = 1, function(x) length(which(!is.na(x))))
+
+#selected proteins that are quantified at least 3 times
+MSZ20_TCLtri <- MSZ20_TCL[which(MSZ20_TCL$MSZ20_T_count>=3),]
+
+#order proteins by ratio mean
+MSZ20_TCLtri <- MSZ20_TCLtri[order(MSZ20_TCLtri$Log2.MSZ20_T_mean),]
+
+#genarate ranking
+for(i in 1:nrow(MSZ20_TCLtri))
+  MSZ20_TCLtri$MSZ20_T_rank[i] <- i/nrow(MSZ20_TCLtri)
+
+MSZ20_TCLtriMedian <- median(MSZ20_TCLtri$Log2.MSZ20_T_mean)
+MSZ20_TCLtrilable <- 1/(1+1/2^MSZ20_TCLtriMedian)*100
+
+#one sample t-test aganist MSZ20_TCLtriMedian (mu=MSZ20_TCLtriMedian)
+for(i in 1:nrow(MSZ20_TCLtri))
+  MSZ20_TCLtri$MSZ20_T_p.val[i] <- t.test(select(MSZ20_TCLtri, Log2.MSZ20_T_1, Log2.MSZ20_T_2, Log2.MSZ20_T_3, Log2.MSZ20_T_4)[i,], mu=MSZ20_TCLtriMedian)$p.value
+
+MSZ20_hits_TCL <- MSZ20_TCLtri[MSZ20_TCLtri$First.Majority.protein.IDs %in% MSZ20_hits$First.Majority.protein.IDs,]
+MSZ20_neghits_TCL <- MSZ20_TCLtri[MSZ20_TCLtri$First.Majority.protein.IDs %in% MSZ20_neghits$First.Majority.protein.IDs,]
+
+MSZ20_TCLtri$group <- as.factor("all")
+MSZ20_hits_TCL$group <- as.factor("MSZ20_hits")
+MSZ20_neghits_TCL$group <- as.factor("MSZ20_neghits")
+
+TCLplot <- rbind(MSZ20_TCLtri, MSZ20_hits_TCL, MSZ20_neghits_TCL)
+
+MSZ20_TCLtriMedian <- median(MSZ20_TCLtri[,"Log2.MSZ20_T_mean"])
+MSZ20_TCLtrilable <- format(round(1/(1+1/2^MSZ20_TCLtriMedian)*100, 2), nsmall = 2)
+
+#mycol=c("Black","#7FBF26","gray60")
+#myfill=c(NA,"#7FBF26","gray60")
+# #00bfc4
+mycol=c("Black","#7FBF26","gray60")
+myfill=c(NA,"#7FBF26","gray60")
+
+TCL_Dg <- ggplot(TCLplot, aes(Log2.MSZ20_T_mean)) +
+          geom_density(aes(x = Log2.MSZ20_T_mean, y = ..count.., fill = group, color = group), alpha=.6, size = 1) +
+          scale_fill_manual(values=myfill) +
+          scale_colour_manual(values=mycol) +
+          geom_vline(xintercept = MSZ20_TCLtriMedian,linetype="dashed", size = 1) +
+          geom_label(label = paste(c("Labeling efficiency: ", MSZ20_TCLtrilable, "%"), collapse = ""), y=2000, x=MSZ20_TCLtriMedian+3)+
+          #xlim(-7, 1) + 
+          theme(
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        ) + 
+  scale_y_continuous(expand = expansion(mult = c(0.005, 0.1))) +
+  scale_x_continuous(expand = c(0.01, 0.01), limits = c(-7, 1))
+
+          
+TCL_Dg
+```
+
+```{r, fig.width=8, fig.height=8}
+MSZ08fileNames <- list.files(path = "Data", pattern = "MSZ08*")
+
+MSZ08files <- paste("Data/", MSZ08fileNames, sep="")
+Lapply <- lapply(MSZ08files, read.csv, header=TRUE)
+MSZ08names <- gsub("_proteinGroups.csv", "", MSZ08fileNames)
+MSZ08names <- gsub("_All_20150814", "", MSZ08names)
+names(Lapply) <- MSZ08names
+for(i in names(Lapply)) 
+    assign(i, Lapply[[i]])
+rm(Lapply)
+
+#MSZ08files <- paste("Data/", MSZ08fileNames, sep="")
+#MSZ08 <- read.csv(MSZ08files, header=TRUE)
+
+
+MSZ08sol_20 <- merge(MSZ20_tri, MSZ08_sol, by = "First.Majority.protein.IDs", all.x = F, suffixes = c("","_08"))
+MSZ08sol_20 <- merge(MSZ08sol_20, select(MSZ20_hits, First.Majority.protein.IDs,Hits), by = "First.Majority.protein.IDs", all.x = T)
+MSZ08sol_20$Hits[is.na(MSZ08sol_20$Hits)] <- F
+MSZ08_SG <- c("YNR016C","YLR249W","YGL245W","YER036C","YMR235C","YGL105W","YGL195W","YMR079W","YER151C","YGR162W","YKL081W","YIL078W","YGL099W","YFR009W","YGR285C","YBR025C","YNL207W","YJL080C","YOR260W","YPL226W","YER165W","YNL118C","YHR064C","YER068W","YOR168W","YNR051C","YBR172C","YPL048W","YIL128W","YOR056C","YER042W","YML017W","YNL288W","YEL015W","YNL313C","YHL013C","YGL009C","YPL184C","YML117W","YNL132W","YNL016W","YGR187C","YHR205W","YPR072W","YJR017C","YOL149W","YLR244C","YKL110C","YDR358W","YMR140W","YDR007W","YNL183C","YKL056C","YLR179C","YIL106W","YFL045C","YMR285C","YGL157W","YNL116W","YNL258C","YIL020C","YPL137C","YBR143C","YKL128C","YGL039W","YCR030C","YCL050C","YJL200C","YFR010W","YGL130W","YLR452C","YNL281W","YBR072W","YBR212W","YOR251C","YDR465C","YKR035W-A","YMR049C","YER016W","YDR243C","YDR429C","YGR001C","YLR095C","YBL004W","YCL011C","YNL292W")
+
+MSZ08sol_20_sp <- ggplot(data=MSZ08sol_20) + geom_point(aes(x = Log2.MSZ20_P_T_mean, y = Average.after.TCL.Median.correction, colour=Hits)) + 
+  geom_point(data = MSZ08sol_20[MSZ08sol_20$First.Majority.protein.IDs %in% MSZ08_SG, ], aes(x = Log2.MSZ20_P_T_mean, y = Average.after.TCL.Median.correction), color = "#00bfc4") +
+  theme(
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        axis.line = element_line(colour = "black"),
+        plot.background = element_rect(fill = "transparent",colour = NA),
+        legend.position = "none"
+        )+
+  scale_colour_manual(values=c("#C9CACA","#7FBF26"))+
+  labs(x = "Newly translated protein pelletability after HS", y = "Protein remained in supernatant after HS")
+MSZ08sol_20_sp
+```
+

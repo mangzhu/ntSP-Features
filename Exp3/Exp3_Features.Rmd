@@ -1,0 +1,224 @@
+---
+title: "Exp3_Feature_analysis"
+author: "Mang Zhu"
+date: "June 15, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+bins <- list.files(path = "bin")
+bindir <- paste("bin/", bins, sep="")
+Lapply <- lapply(bindir, read.csv, header=TRUE)
+names <- gsub(".csv", "", bins)
+names(Lapply) <- names
+for(i in names(Lapply)) 
+  assign(i, Lapply[[i]])
+rm(Lapply)
+
+myarr<-c("aa","abd","acc","diso","egg","ord","seq","ss8","len","tm","cmpl","cpla","gvy","tgo","avpfam","totpfam","auniconc","hl")
+nums<-c(1,2,3,4)
+for (mar in myarr) {
+  j<-paste("*.",mar,sep="")
+  k <- read.table( dir("pme/", pattern=j, full.names=T) ) 
+  for (num in nums){
+    if (num==1){bin="hitbin1"}
+    if (num==2){bin="hitbin2"}
+    if (num==3){bin="hitbin3"}
+    if (num==4){bin="hitbin4"}
+    i <- paste(mar,num,sep="")
+        assign(i, k[k[,1] %in% get(bin)[,2],])
+    #if (num==5){bin="pme"}
+  }
+}
+
+```
+
+```{r NAME DATA COLUMNS}
+nums<-c(1,2,3,4)
+for (num in nums) {
+  i<-paste("diso",num,sep="")
+  j<-get(i)
+  names(j)=c("name","ndis","ntot","pdis","nrun","maxrun","n1","lpsd","lps","n2","pfmd","pfm","n3","rna","n4","morf","n5","psite","pst2","n6","hydo","n7","chg","n8","pos","n9","pos2","n10","neg","n11","netq","n12","plr","n13","plr2","n14","qar","n15","lark","n16","lit1","n17","qn","n18","yg","n19","frg","n20","pxg","n21","rgg","n22","ryg","n23","pipi","n24","pipa","n25","hbd","n26","hba","n27","pak","n28","pak2","n30","lin","n31","gpg","n32","mvfy","n33","lin2","n34","scd","n35","R","n36","H","n37","K","n38","D","n39","E","n40","S","n41","T","n42","N","n43","Q","n44","C","n45","U","n46","G","n47","P","n48","A","n49","V","n50","I","n51","L","n52","M","n53","F","n54","Y","n55","W","n56","X")
+  assign(i,j)
+
+  i<-paste("abd",num,sep="")
+  j<-get(i)
+  names(j)=c("name","abd")
+  assign(i,j)
+
+  i<-paste("ss8",num,sep="")
+  j<-get(i)
+  names(j)=c("name","alpha","threeten","pihelix","extended","beta","turn","bend","other","tot")
+  assign(i,j)
+
+  i<-paste("acc",num,sep="")
+  j<-get(i)
+  names(j)=c("name","core","expo","tot")
+  assign(i,j)
+
+  
+  i<-paste("len",num,sep="")
+  j<-get(i)
+  names(j)=c("name","diso","len","per","num","max")
+  assign(i,j)
+  
+  i <- paste("cmpl",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","subunit")
+  assign(i,j)
+  
+  i <- paste("cpla",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","subunit")
+  assign(i,j)
+  
+  i <- paste("gvy",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","gvy")
+  assign(i,j)
+  
+  i <- paste("tgo",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","sections","residues_total")
+  assign(i,j)
+  
+  i <- paste("avpfam",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","DOM_AVG_LEN")
+  assign(i,j)
+  
+  i <- paste("totpfam",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","tpfam_aa","total_aa")
+  assign(i,j)
+  
+  i <- paste("hl",num,sep = "")
+  j<-get(i)
+  names(j) <- c("name","yeast_name","halflife")
+  assign(i,j)
+  
+}
+```
+
+```{r PLOT VARIABLES}
+mycol=c("#7FBF26","#C9CACA","gray60","gray40")
+mynam=c("ntSP","ntCP","ctrl","PME")
+```
+
+```{r PLOT, fig.width=8, fig.height=8, echo=FALSE}
+
+par(oma=c(1,1,1,1),mar=c(2,3,1,1),mgp=c(2,1,0), mfrow=c(3,3))
+
+boxplot(diso1$ntot,diso2$ntot,diso3$ntot,diso4$ntot,col=mycol,ylab="Seq Len",ylim=c(0,1500),names=mynam,outline=FALSE)
+plen<-c(wilcox.test(diso1$ntot,diso3$ntot)$p.value,wilcox.test(diso1$ntot,diso2$ntot)$p.value,wilcox.test(diso2$ntot,diso3$ntot)$p.value,wilcox.test(diso1$ntot,diso4$ntot)$p.value,wilcox.test(diso2$ntot,diso4$ntot)$p.value,wilcox.test(diso3$ntot,diso4$ntot)$p.value)
+
+boxplot(diso1$pdis,diso2$pdis,diso3$pdis,diso4$pdis,col=mycol,ylab="% Disorder",names=mynam,outline=FALSE)
+pdiso<-c(wilcox.test(diso1$pdis,diso3$pdis)$p.value,wilcox.test(diso1$pdis,diso2$pdis)$p.value,wilcox.test(diso2$pdis,diso3$pdis)$p.value,wilcox.test(diso1$pdis,diso4$pdis)$p.value,wilcox.test(diso2$pdis,diso4$pdis)$p.value,wilcox.test(diso3$pdis,diso4$pdis)$p.value)
+
+boxplot(len1$max/len1$len,len2$max/len2$len,len3$max/len3$len,len4$max/len4$len,col=mycol,ylab="Max Diso Len",ylim=c(0,0.5),names=mynam,outline=FALSE)
+pmdiso<-c(wilcox.test(len1$max/len1$len,len3$max/len3$len)$p.value,wilcox.test(len1$max/len1$len,len2$max/len2$len)$p.value,wilcox.test(len2$max/len2$len,len3$max/len3$len)$p.value,wilcox.test(len1$max/len1$len,len4$max/len4$len)$p.value,wilcox.test(len2$max/len2$len,len4$max/len4$len)$p.value,wilcox.test(len3$max/len3$len,len4$max/len4$len)$p.value)
+
+boxplot(diso1$hydo,diso2$hydo,diso3$hydo,diso4$hydo,col=mycol,ylab="% Hydro",ylim=c(20,60),names=mynam,outline=FALSE)
+phydro<-c(wilcox.test(diso1$hydo,diso3$hydo)$p.value,wilcox.test(diso1$hydo,diso2$hydo)$p.value,wilcox.test(diso2$hydo,diso3$hydo)$p.value,wilcox.test(diso1$hydo,diso4$hydo)$p.value,wilcox.test(diso2$hydo,diso4$hydo)$p.value,wilcox.test(diso3$hydo,diso4$hydo)$p.value)
+
+boxplot(diso1$plr,diso2$plr,diso3$plr,diso4$plr,col=mycol,ylab="% Polar",ylim=c(20,50),names=mynam,outline=FALSE)
+pplr<-c(wilcox.test(diso1$plr,diso3$plr)$p.value,wilcox.test(diso1$plr,diso2$plr)$p.value,wilcox.test(diso2$plr,diso3$plr)$p.value,wilcox.test(diso1$plr,diso4$plr)$p.value,wilcox.test(diso2$plr,diso4$plr)$p.value,wilcox.test(diso3$plr,diso4$plr)$p.value)
+
+boxplot(diso1$chg,diso2$chg,diso3$chg,diso4$chg,col=mycol,ylab="% Charged",ylim=c(5,45),names=mynam,outline=FALSE)
+pchg<-c(wilcox.test(diso1$chg,diso3$chg)$p.value,wilcox.test(diso1$chg,diso2$chg)$p.value,wilcox.test(diso2$chg,diso3$chg)$p.value,wilcox.test(diso1$chg,diso4$chg)$p.value,wilcox.test(diso2$chg,diso4$chg)$p.value,wilcox.test(diso3$chg,diso4$chg)$p.value)
+
+boxplot(diso1$pos2,diso2$pos2,diso3$pos2,diso4$pos2,col=mycol,ylab="% Positive",ylim=c(0,30),names=mynam,outline=FALSE)
+ppos<-c(wilcox.test(diso1$pos2,diso3$pos2)$p.value,wilcox.test(diso1$pos2,diso2$pos2)$p.value,wilcox.test(diso2$pos2,diso3$pos2)$p.value,wilcox.test(diso1$pos2,diso4$pos2)$p.value,wilcox.test(diso2$pos2,diso4$pos2)$p.value,wilcox.test(diso3$pos2,diso4$pos2)$p.value)
+
+boxplot(diso1$neg,diso2$neg,diso3$neg,diso4$neg,col=mycol,ylab="% Negative",ylim=c(0,30),names=mynam,outline=FALSE)
+pneg<-c(wilcox.test(diso1$neg,diso3$neg)$p.value,wilcox.test(diso1$neg,diso2$neg)$p.value,wilcox.test(diso2$neg,diso3$neg)$p.value,wilcox.test(diso1$neg,diso4$neg)$p.value,wilcox.test(diso2$neg,diso4$neg)$p.value,wilcox.test(diso3$neg,diso4$neg)$p.value)
+
+boxplot(diso1$pipi,diso2$pipi,diso3$pipi,diso4$pipi,col=mycol,ylab="% pi-pi",ylim=c(30,70),names=mynam,outline=FALSE)
+ppipi<-c(wilcox.test(diso1$pipi,diso3$pipi)$p.value,wilcox.test(diso1$pipi,diso2$pipi)$p.value,wilcox.test(diso2$pipi,diso3$pipi)$p.value,wilcox.test(diso1$pipi,diso4$pipi)$p.value,wilcox.test(diso2$pipi,diso4$pipi)$p.value,wilcox.test(diso3$pipi,diso4$pipi)$p.value)
+
+#####
+par(oma=c(1,1,1,1),mar=c(2,3,1,1),mgp=c(2,1,0), mfrow=c(3,3))
+
+
+boxplot(diso1$hbd,diso2$hbd,diso3$hbd,diso4$hbd,col=mycol,ylab="% HB Donor",ylim=c(30,60),names=mynam,outline=FALSE)
+phbd<-c(wilcox.test(diso1$hbd,diso3$hbd)$p.value,wilcox.test(diso1$hbd,diso2$hbd)$p.value,wilcox.test(diso2$hbd,diso3$hbd)$p.value,wilcox.test(diso1$hbd,diso4$hbd)$p.value,wilcox.test(diso2$hbd,diso4$hbd)$p.value,wilcox.test(diso3$hbd,diso4$hbd)$p.value)
+
+boxplot(diso1$hba,diso2$hba,diso3$hba,diso4$hba,col=mycol,ylab="% HB Acc",ylim=c(30,60),names=mynam,outline=FALSE)
+phba<-c(wilcox.test(diso1$hba,diso3$hba)$p.value,wilcox.test(diso1$hba,diso2$hba)$p.value,wilcox.test(diso2$hba,diso3$hba)$p.value,wilcox.test(diso1$hba,diso4$hba)$p.value,wilcox.test(diso2$hba,diso4$hba)$p.value,wilcox.test(diso3$hba,diso4$hba)$p.value)
+
+boxplot((ss81$alpha+ss81$threeten+ss81$pihelix),(ss82$alpha+ss82$threeten+ss82$pihelix),(ss83$alpha+ss83$threeten+ss83$pihelix),(ss84$alpha+ss84$threeten+ss84$pihelix),col=mycol,ylab="% Helix",names=mynam,outline=FALSE)
+phelix<-c(wilcox.test((ss81$alpha+ss81$threeten+ss81$pihelix),(ss83$alpha+ss83$threeten+ss83$pihelix))$p.value,wilcox.test((ss81$alpha+ss81$threeten+ss81$pihelix),(ss82$alpha+ss82$threeten+ss82$pihelix))$p.value,wilcox.test((ss82$alpha+ss82$threeten+ss82$pihelix),(ss83$alpha+ss83$threeten+ss83$pihelix))$p.value,wilcox.test((ss81$alpha+ss81$threeten+ss81$pihelix),(ss84$alpha+ss84$threeten+ss84$pihelix))$p.value,wilcox.test((ss82$alpha+ss82$threeten+ss82$pihelix),(ss84$alpha+ss84$threeten+ss84$pihelix))$p.value,wilcox.test((ss83$alpha+ss83$threeten+ss83$pihelix),(ss84$alpha+ss84$threeten+ss84$pihelix))$p.value)
+
+boxplot((ss81$extended+ss81$beta+ss81$turn),(ss82$extended+ss82$beta+ss82$turn),(ss83$extended+ss83$beta+ss83$turn),(ss84$extended+ss84$beta+ss84$turn),col=mycol,ylab="% Beta",names=mynam,outline=FALSE)
+pbeta<-c(wilcox.test((ss81$extended+ss81$beta+ss81$turn),(ss83$extended+ss83$beta+ss83$turn))$p.value,wilcox.test((ss81$extended+ss81$beta+ss81$turn),(ss82$extended+ss82$beta+ss82$turn))$p.value,wilcox.test((ss82$extended+ss82$beta+ss82$turn),(ss83$extended+ss83$beta+ss83$turn))$p.value,wilcox.test((ss81$extended+ss81$beta+ss81$turn),(ss84$extended+ss84$beta+ss84$turn))$p.value,wilcox.test((ss82$extended+ss82$beta+ss82$turn),(ss84$extended+ss84$beta+ss84$turn))$p.value,wilcox.test((ss83$extended+ss83$beta+ss83$turn),(ss84$extended+ss84$beta+ss84$turn))$p.value)
+
+boxplot(ss81$other,ss82$other,ss83$other,ss84$other,col=mycol,ylab="% Coil",names=mynam,outline=FALSE)
+pother<-c(wilcox.test(ss81$other,ss83$other)$p.value,wilcox.test(ss81$other,ss82$other)$p.value,wilcox.test(ss82$other,ss83$other)$p.value,wilcox.test(ss81$other,ss84$other)$p.value,wilcox.test(ss82$other,ss84$other)$p.value,wilcox.test(ss83$other,ss84$other)$p.value)
+
+boxplot(acc1$expo,acc2$expo,acc3$expo,acc4$expo,col=mycol,names=mynam,outline=FALSE,ylab="% Sol Exp")
+pexpo<-c(wilcox.test(acc1$expo,acc3$expo)$p.value,wilcox.test(acc1$expo,acc2$expo)$p.value,wilcox.test(acc2$expo,acc3$expo)$p.value,wilcox.test(acc1$expo,acc4$expo)$p.value,wilcox.test(acc2$expo,acc4$expo)$p.value,wilcox.test(acc3$expo,acc4$expo)$p.value)
+
+boxplot(abd1$abd,abd2$abd,abd3$abd,abd4$abd,col=mycol,names=mynam,outline=FALSE, ylab="Abnd [ppm]",ylim=c(0,1000))
+pabd<-c(wilcox.test(abd1$abd,abd3$abd)$p.value,wilcox.test(abd1$abd,abd2$abd)$p.value,wilcox.test(abd2$abd,abd3$abd)$p.value,wilcox.test(abd1$abd,abd4$abd)$p.value,wilcox.test(abd2$abd,abd4$abd)$p.value,wilcox.test(abd3$abd,abd4$abd)$p.value)
+
+boxplot(totpfam1$tpfam_aa/totpfam1$total_aa,totpfam2$tpfam_aa/totpfam2$total_aa,totpfam3$tpfam_aa/totpfam3$total_aa,totpfam4$tpfam_aa/totpfam4$total_aa,col=mycol,names=mynam,ylab="pfam size/length",outline=FALSE)
+ptotpfama<-c(wilcox.test(totpfam1$tpfam_aa/totpfam1$total_aa,totpfam3$tpfam_aa/totpfam3$total_aa)$p.value,wilcox.test(totpfam1$tpfam_aa/totpfam1$total_aa,totpfam2$tpfam_aa/totpfam2$total_aa)$p.value,wilcox.test(totpfam2$tpfam_aa/totpfam2$total_aa,totpfam3$tpfam_aa/totpfam3$total_aa)$p.value,wilcox.test(totpfam1$tpfam_aa/totpfam1$total_aa,totpfam4$tpfam_aa/totpfam4$total_aa)$p.value,wilcox.test(totpfam2$tpfam_aa/totpfam2$total_aa,totpfam4$tpfam_aa/totpfam4$total_aa)$p.value,wilcox.test(totpfam3$tpfam_aa/totpfam3$total_aa,totpfam4$tpfam_aa/totpfam4$total_aa)$p.value)
+
+boxplot(diso1$pfm/diso1$ntot,diso2$pfm/diso2$ntot,diso3$pfm/diso3$ntot,diso4$pfm/diso4$ntot,ylim=c(0,0.015),col=mycol,names=mynam,outline=FALSE,ylab="pfam/residue")
+ppfm<-c(wilcox.test(diso1$pfm/diso1$ntot,diso3$pfm/diso3$ntot)$p.value,wilcox.test(diso1$pfm/diso1$ntot,diso2$pfm/diso2$ntot)$p.value,wilcox.test(diso2$pfm/diso2$ntot,diso3$pfm/diso3$ntot)$p.value,wilcox.test(diso1$pfm/diso1$ntot,diso4$pfm/diso4$ntot)$p.value,wilcox.test(diso2$pfm/diso2$ntot,diso4$pfm/diso4$ntot)$p.value,wilcox.test(diso3$pfm/diso3$ntot,diso4$pfm/diso4$ntot)$p.value)
+
+#######
+par(oma=c(1,1,1,1),mar=c(2,3,1,1),mgp=c(2,1,0), mfrow=c(3,3))
+
+
+boxplot(tm1$V3,tm2$V3,tm3$V3,tm4$V3,col=mycol,names=mynam,outline=FALSE,ylab="Tm")
+ptm<-c(wilcox.test(tm1$V3,tm3$V3)$p.value,wilcox.test(tm1$V3,tm2$V3)$p.value,wilcox.test(tm2$V3,tm3$V3)$p.value,wilcox.test(tm1$V3,tm4$V3)$p.value,wilcox.test(tm2$V3,tm4$V3)$p.value,wilcox.test(tm3$V3,tm4$V3)$p.value)
+
+boxplot(cmpl1$subunit,cmpl2$subunit,cmpl3$subunit,cmpl4$subunit,col=mycol,ylab="# of subunit (w/o mono)",names=mynam,outline=FALSE, sub = paste("ntHSP n=",length(cmpl1$subunit),"ntCP n=",length(cmpl2$subunit),"no-change n=",length(cmpl3$subunit),"pme n=",length(cmpl4$subunit)))
+pcmpl<-c(wilcox.test(cmpl1$subunit,cmpl3$subunit)$p.value,wilcox.test(cmpl1$subunit,cmpl2$subunit)$p.value,wilcox.test(cmpl2$subunit,cmpl3$subunit)$p.value,wilcox.test(cmpl1$subunit,cmpl4$subunit)$p.value,wilcox.test(cmpl2$subunit,cmpl4$subunit)$p.value,wilcox.test(cmpl3$subunit,cmpl4$subunit)$p.value)
+
+fishercplahits <- matrix(c(length(which(cpla1$subunit>1)),length(which(cpla4$subunit>1))-length(which(cpla1$subunit>1)),length(cpla1$subunit)-length(which(cpla1$subunit>1)),length(which(cpla4$subunit==1))-length(cpla1$subunit)+length(which(cpla1$subunit>1))),2,2)
+
+pcplastack <- fisher.test(fishercplahits, alternative='greater')$p.value
+
+cplastack <- data.frame("ntHSP" = c(length(which(cpla1$subunit>1)),length(which(cpla1$subunit==1))),
+                        "pme" = c(length(which(cpla4$subunit>1)),length(which(cpla4$subunit==1))))
+rownames(cplastack) <- c("complex","mono")
+
+
+cplastackperc <- data.frame("ntHSP" = c(length(which(cpla1$subunit>1))/length(cpla1$subunit),length(which(cpla1$subunit==1))/length(cpla1$subunit)),
+                            "pme" = c(length(which(cpla4$subunit>1))/length(cpla4$subunit),length(which(cpla4$subunit==1))/length(cpla4$subunit)))
+rownames(cplastackperc) <- c("complex","mono")
+
+cplastackpercm <- as.matrix(cplastackperc)
+
+barplot(cplastackpercm,col=c("#7FBF26","gray60"),ylim=c(0,1.2))
+legend("topleft", c("complex","mono"),fill = c("#7FBF26","gray60"))
+text(1,1.1,pcplastack)
+
+
+####################
+
+boxplot(gvy1$gvy,gvy2$gvy,gvy3$gvy,gvy4$gvy,col=mycol,names=mynam,outline=FALSE,ylab="GRAVY",ylim=c(-1.5,1))
+pgvy<-c(wilcox.test(gvy1$gvy,gvy3$gvy)$p.value,wilcox.test(gvy1$gvy,gvy2$gvy)$p.value,wilcox.test(gvy2$gvy,gvy3$gvy)$p.value,wilcox.test(gvy1$gvy,gvy4$gvy)$p.value,wilcox.test(gvy2$gvy,gvy4$gvy)$p.value,wilcox.test(gvy3$gvy,gvy4$gvy)$p.value)
+
+
+boxplot(tgo1$sections,tgo2$sections,tgo3$sections,tgo4$sections,col=mycol,names=mynam,ylab="# of tango section",ylim=c(0,25),outline=FALSE)
+ptgos<-c(wilcox.test(tgo1$sections,tgo3$sections)$p.value,wilcox.test(tgo1$sections,tgo2$sections)$p.value,wilcox.test(tgo2$sections,tgo3$sections)$p.value,wilcox.test(tgo1$sections,tgo4$sections)$p.value,wilcox.test(tgo2$sections,tgo4$sections)$p.value,wilcox.test(tgo3$sections,tgo4$sections)$p.value)
+
+boxplot(cpla1$subunit,cpla2$subunit,cpla3$subunit,cpla4$subunit,col=mycol,ylab="# of subunit (w/ mono)",names=mynam,outline=FALSE, sub = paste("ntHSP n=",length(cpla1$subunit),"ntCP n=",length(cpla2$subunit),"no-change n=",length(cpla3$subunit),"pme n=",length(cpla4$subunit)))
+pcpla<-c(wilcox.test(cpla1$subunit,cpla3$subunit)$p.value,wilcox.test(cpla1$subunit,cpla2$subunit)$p.value,wilcox.test(cpla2$subunit,cpla3$subunit)$p.value,wilcox.test(cpla1$subunit,cpla4$subunit)$p.value,wilcox.test(cpla2$subunit,cpla4$subunit)$p.value,wilcox.test(cpla3$subunit,cpla4$subunit)$p.value)
+
+boxplot(hl1$halflife,hl2$halflife,hl3$halflife,hl4$halflife,col=mycol,ylab="Protein Halflife",  names=mynam,outline=FALSE,sub = paste("ntHSP n=",length(hl1$halflife),"ntCP n=",length(hl2$halflife),"no-change n=",length(hl3$halflife),"pme n=",length(hl4$halflife)))
+phl<-c(wilcox.test(hl1$halflife,hl3$halflife)$p.value,wilcox.test(hl1$halflife,hl2$halflife)$p.value,wilcox.test(hl2$halflife,hl3$halflife)$p.value,wilcox.test(hl1$halflife,hl4$halflife)$p.value,wilcox.test(hl2$halflife,hl4$halflife)$p.value,wilcox.test(hl3$halflife,hl4$halflife)$p.value)
+
+```
+
+```{r}
+myp<-rbind(plen,pdiso,pmdiso,phydro,pplr,pchg,ppos,pneg,ppipi,phbd,phba,phelix,pbeta,pother,pexpo,pabd,ptotpfama,ppfm,ptm,pcmpl,pgvy,ptgos,phl)
+myp
+```

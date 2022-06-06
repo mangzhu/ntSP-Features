@@ -1,0 +1,161 @@
+---
+title: "Exp2"
+author: "Mang Zhu"
+date: "May 25, 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = getwd())
+```
+
+
+```{r data import}
+fileNames <- list.files(path = "Data", pattern = "MSZ15*")
+files <- paste("Data/", fileNames, sep="")
+Lapply <- lapply(files, read.csv, header=TRUE)
+names <- gsub("_proteinGroups.csv", "", fileNames)
+names(Lapply) <- names
+for(i in names(Lapply)) 
+    assign(i, Lapply[[i]])
+rm(Lapply)
+
+MSZ20_hits <- read.csv("Data/MSZ20_hits.csv", header = T)
+```
+
+
+```{r, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+
+MSZ15 <- select(MSZ15_20210721, Protein.IDs, Majority.protein.IDs, First.Majority.protein.IDs, Fasta.headers, Ratio.H.L.MSZ15.1, Ratio.H.L.MSZ15.2, Ratio.H.L.MSZ15.3)
+
+#Log2 of  Ratio
+MSZ15$Log2.MSZ15.1 <- log2(MSZ15$Ratio.H.L.MSZ15.1)
+MSZ15$Log2.MSZ15.2 <- log2(MSZ15$Ratio.H.L.MSZ15.2)
+MSZ15$Log2.MSZ15.3 <- log2(MSZ15$Ratio.H.L.MSZ15.3)
+
+#mean of Log2 ratio not counting NA using 'na.rm = T'
+MSZ15$Log2.MSZ15_mean <- apply(select(MSZ15, Log2.MSZ15.1, Log2.MSZ15.2, Log2.MSZ15.3), MARGIN = 1, mean, na.rm = T)
+
+#order proteins by ratio mean
+MSZ15 <- MSZ15[order(MSZ15$Log2.MSZ15_mean),]
+
+#genarate ranking
+for(i in 1:nrow(MSZ15))
+  MSZ15$MSZ15_rank[i] <- i/nrow(MSZ15)
+
+MSZ15_Median <- median(MSZ15$Log2.MSZ15_mean)
+MSZ15_lable <- 1/(1+1/2^MSZ15_Median)*100
+
+#one sample t-test aganist MSZ15_Median (mu=MSZ15_Median)
+for(i in 1:nrow(MSZ15))
+  MSZ15$MSZ15_p.val[i] <- t.test(select(MSZ15, Log2.MSZ15.1, Log2.MSZ15.2, Log2.MSZ15.3)[i,], mu=MSZ15_Median)$p.value
+
+
+for(i in 1:nrow(MSZ15)){
+  k <- as.numeric(select(MSZ15, Log2.MSZ15.1, Log2.MSZ15.2, Log2.MSZ15.3)[i,])
+  MSZ15$MSZ15_SE[i] <- sqrt(var(k[!is.na(k)])/3)
+}
+
+for(i in 1:nrow(MSZ15)){
+  k <- as.numeric(select(MSZ15, Log2.MSZ15.1, Log2.MSZ15.2, Log2.MSZ15.3)[i,])
+  MSZ15$MSZ15_SD[i] <- sd(k[!is.na(k)])
+}
+
+#Calculate MAD of TCL log2 ratio
+MSZ15_MAD <- mad(MSZ15$Log2.MSZ15_mean)
+
+#Select proteins with TCL larger than 2 MAD
+MSZ15_2MADhits_pos <- MSZ15[which(MSZ15$Log2.MSZ15_mean>=MSZ15_Median+2*MSZ15_MAD),]
+
+#Select sig 2Mad Hits
+MSZ15_sig2MADhits_pos <- MSZ15_2MADhits_pos[which(MSZ15_2MADhits_pos$MSZ15_p.val<=0.05),]
+
+#Select proteins with TCL lower than negtive 2 MAD
+MSZ15_2MADhits_neg <- MSZ15[which(MSZ15$Log2.MSZ15_mean<=MSZ15_Median-2*MSZ15_MAD),]
+
+#Select sig 2Mad Hits
+MSZ15_sig2MADhits_neg <- MSZ15_2MADhits_neg[which(MSZ15_2MADhits_neg$MSZ15_p.val<=0.05),]
+
+MSZ15_nochange <- MSZ15[!(MSZ15[,"First.Majority.protein.IDs"] %in% rbind(MSZ15_sig2MADhits_pos,MSZ15_sig2MADhits_neg)[,"First.Majority.protein.IDs"]),]
+
+```
+
+```{r Plotting, warning=FALSE}
+
+MSZ15_melt <- reshape2::melt(select(MSZ15, MSZ15_rank, Log2.MSZ15.1, Log2.MSZ15.2, Log2.MSZ15.3), id.vars = "MSZ15_rank")
+MSZ15_hit <- MSZ15[MSZ15$First.Majority.protein.IDs %in% MSZ20_hits$First.Majority.protein.IDs,]
+MSZ15_melt_hits <- reshape2::melt(select(MSZ15_hit, MSZ15_rank, Log2.MSZ15.1, Log2.MSZ15.2, Log2.MSZ15.3), id.vars = "MSZ15_rank")
+
+library(zoo)
+
+SE <- zoo(c(rep(NA, each = 25), MSZ15$MSZ15_SD, rep(NA, each = 24)))
+SE_roll <- rollapply(SE, width = 50, by = 1, FUN = median, align = "center", na.rm = TRUE)
+MSZ15$SE_roll <- SE_roll
+
+MSZ15_rank_dotst <- ggplot(data = MSZ15, aes(x = MSZ15_rank, y = Log2.MSZ15_mean)) + geom_point(data=MSZ15_melt, aes(x = MSZ15_rank, y = value), size = 0.5, alpha = 0.6, color = "grey30") + 
+  geom_point(data = MSZ15_melt_hits,aes(x = MSZ15_rank, y = value), color = "#7FBF26", size = 0.5, alpha = 0.6) +
+  geom_line(data = MSZ15, aes(x = MSZ15_rank, y = Log2.MSZ15_mean), colour = "#193161", size = 0.8) +
+
+          theme(
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        )+
+  labs(y = "log2", x = "% Rank")
+
+MSZ15_rank_dotst 
+
+library(ggpubr)
+library(ggplot2)
+
+MSZ15v <- MSZ15
+MSZ15v$Hits[MSZ15v$First.Majority.protein.IDs %in% MSZ15_sig2MADhits_pos$First.Majority.protein.IDs] <- "poshits"
+MSZ15v$Hits[MSZ15v$First.Majority.protein.IDs %in% MSZ15_sig2MADhits_neg$First.Majority.protein.IDs] <- "neghits"
+
+MSZ15_sp <- ggplot(data=MSZ15v, aes(x = Log2.MSZ15_mean, y = -log10(MSZ15_p.val), color = Hits )) + geom_point() + scale_colour_manual(values=c("gray60","black"), na.value = "#C9CACA")
+
+MSZ15_sp <- MSZ15_sp+ geom_hline(yintercept=-log10(0.05), linetype="dashed", color = "black", size= .5) + geom_vline(xintercept = MSZ15_Median+2*MSZ15_MAD, linetype="dashed",color = "black", size= .5) + geom_vline(xintercept = MSZ15_Median-2*MSZ15_MAD, linetype="dashed",color = "black", size= .5) + 
+          theme(
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        ) +
+  #xlim(-5,5) +
+  labs(y = "-log10(p-value)", x = "log2(Fold Change)")
+MSZ15_sp
+```
+
+```{r}
+mycol=c("Black","#7FBF26","gray60")
+myfill=c(NA,"#7FBF26","gray60")
+
+MSZ15_dg <- ggplot(MSZ15, aes(Log2.MSZ15_mean)) +
+          geom_density(aes(x = Log2.MSZ15_mean, y = ..count..), alpha=.6, size = 1) +
+          geom_density(data = MSZ15[MSZ15$First.Majority.protein.IDs %in% MSZ20_hits$First.Majority.protein.IDs,],aes(x = Log2.MSZ15_mean, y = ..count..), color = "#7FBF26", size = 1) +
+          theme(
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "transparent",colour = NA),
+          axis.line = element_line(colour = "black"),
+          plot.background = element_rect(fill = "transparent",colour = NA),
+          legend.position = "none"
+        ) +
+  scale_y_continuous(expand = expansion(mult = c(0.005, 0.1))) +
+  scale_x_continuous(expand = c(0.01, 0.01), limits = c(-7, 1))
+
+          
+MSZ15_dg
+```
+
+
